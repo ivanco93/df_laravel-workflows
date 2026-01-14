@@ -39,10 +39,21 @@ jobs:
         run: |
           ./vendor/bin/phpcbf --standard=$phpcs_properties_file
       
-      - name: Run PHPCS
+      - name: Run PHPCS with PR annotations
+        if: github.event.pull_request != null
         run: |
+          set +e
+
           ./vendor/bin/phpcs \
-            --standard=.code-quality/phpcs/phpcs.xml \
-            --report=checkstyle | cs2pr
-        continue-on-error: true
+            --standard=$phpcs_properties_file \
+            --report=checkstyle \
+          | cs2pr
+
+          PHPCS_EXIT_CODE=${PIPESTATUS[0]}
+
+          if [ "$PHPCS_EXIT_CODE" -ne 0 ]; then
+            echo "PHPCS failed with exit code $PHPCS_EXIT_CODE"
+            exit $PHPCS_EXIT_CODE
+          fi
+
 

@@ -9,7 +9,7 @@ on:
         type: string
 env:
   phpcs_properties_file: .code-quality/phpcs/phpcs.xml
-  
+
 jobs:
   phpcs:
     runs-on: ubuntu-latest
@@ -36,8 +36,8 @@ jobs:
       - name: Install PHPCS globally
         run: |
           composer global require \
-            squizlabs/php_codesniffer \
-            slevomat/coding-standard
+            squizlabs/php_codesniffer:^4.0 \
+            slevomat/coding-standard:^8.26
 
       - name: Validate PHPCS ruleset exists
         run: |

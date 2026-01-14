@@ -10,6 +10,7 @@ on:
 
 env:
   phpcs_properties_file: .code-quality/phpcs/phpcs.xml
+  phpstan_config_file: .code-quality/phpstan/phpstan.neon
 
 permissions:
   contents: read
@@ -42,7 +43,7 @@ jobs:
       - name: Run PHPCBF
         run: |
           ./vendor/bin/phpcbf --standard=$phpcs_properties_file
-      
+
       - name: Run PHPCS with PR annotations
         id: phpcs
         continue-on-error: true
@@ -56,14 +57,65 @@ jobs:
           | cs2pr
 
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
-      - name: Add PR comment if PHPCS failed (deduplicated)
-        if: |
-          github.event_name == 'pull_request' &&
-          steps.phpcs.outputs.exit_code != '0'
+
+      - name: Fail if PHPCS found errors
+        if: steps.phpcs.outputs.exit_code != '0'
+        run: exit 1
+
+  phpstan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          tools: composer, cs2pr
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Validate PHPStan config exists
+        run: |
+          if [ ! -f "$phpstan_config_file" ]; then
+            echo "::error file=$phpstan_config_file::PHPStan config not found"
+            exit 1
+          fi
+
+      - name: Run PHPStan with PR annotations
+        id: phpstan
+        continue-on-error: true
+        if: github.event.pull_request != null
+        run: |
+          set +e
+
+          ./vendor/bin/phpstan analyse \
+            -c $phpstan_config_file \
+            --memory-limit=512M \
+            --error-format=checkstyle \
+          | cs2pr
+
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+
+      - name: Fail if PHPStan found errors
+        if: steps.phpstan.outputs.exit_code != '0'
+        run: exit 1
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [phpcs, phpstan]
+    if: |
+      always() &&
+      github.event.pull_request != null &&
+      (needs.phpcs.result == 'failure' || needs.phpstan.result == 'failure')
+    steps:
+      - name: Add PR comment if checks failed (deduplicated)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          COMMENT_BODY="Check the errors reported by code quality checks"
+          COMMENT_BODY="Code quality checks failed. Please review the annotations for details."
 
           EXISTING_COMMENT=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
             --jq ".[] | select(.body == \"$COMMENT_BODY\") | .id")
@@ -72,8 +124,5 @@ jobs:
             gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
               -f body="$COMMENT_BODY"
           else
-            echo "PHPCS comment already exists, skipping."
+            echo "Comment already exists, skipping."
           fi
-
-
-

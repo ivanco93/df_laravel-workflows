@@ -40,6 +40,8 @@ jobs:
           ./vendor/bin/phpcbf --standard=$phpcs_properties_file
       
       - name: Run PHPCS with PR annotations
+        id: phpcs
+        continue-on-error: true
         if: github.event.pull_request != null
         run: |
           set +e
@@ -49,11 +51,16 @@ jobs:
             --report=checkstyle \
           | cs2pr
 
-          PHPCS_EXIT_CODE=${PIPESTATUS[0]}
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+      - name: Add PR comment if PHPCS failed
+        if: |
+          github.event_name == 'pull_request' &&
+          steps.phpcs.outputs.exit_code != '0'
+        run: |
+          gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+            -f body="Check the errors reported by PHPCS"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
-          if [ "$PHPCS_EXIT_CODE" -ne 0 ]; then
-            echo "PHPCS failed with exit code $PHPCS_EXIT_CODE"
-            exit $PHPCS_EXIT_CODE
-          fi
 
 

@@ -22,7 +22,8 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ inputs.php-version }}
-          tools: composer
+          tools: composer, cs2pr
+          coverage: none
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
@@ -42,13 +43,6 @@ jobs:
         run: |
           ./vendor/bin/phpcs \
             --standard=.code-quality/phpcs/phpcs.xml \
-            --report=checkstyle \
-            --report-file=phpcs-report.xml
+            --report=checkstyle | cs2pr
         continue-on-error: true
-
-      - name: Annotate PHPCS results
-        if: github.event.pull_request != null
-        uses: staabm/annotate-pull-request-from-checkstyle@1.4.0/action
-        with:
-          checkstyle: phpcs-report.xml
 

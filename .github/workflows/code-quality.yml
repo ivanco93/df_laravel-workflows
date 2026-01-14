@@ -47,7 +47,7 @@ jobs:
         continue-on-error: true
 
       - name: Annotate PHPCS results
-        uses: staabm/annotate-pull-request-from-checkstyle@v1
+        uses: staabm/annotate-pull-request-from-checkstyle@1.4.0
         if: github.event.pull_request != null
         with:
           checkstyle: phpcs-report.xml

@@ -56,15 +56,24 @@ jobs:
           | cs2pr
 
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
-      - name: Add PR comment if PHPCS failed
+      - name: Add PR comment if PHPCS failed (deduplicated)
         if: |
           github.event_name == 'pull_request' &&
           steps.phpcs.outputs.exit_code != '0'
-        run: |
-          gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
-            -f body="Check the errors reported by code-quality workflow"
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMENT_BODY="Check the errors reported by code quality checks"
+
+          EXISTING_COMMENT=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+            --jq ".[] | select(.body == \"$COMMENT_BODY\") | .id")
+
+          if [ -z "$EXISTING_COMMENT" ]; then
+            gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+              -f body="$COMMENT_BODY"
+          else
+            echo "PHPCS comment already exists, skipping."
+          fi
 
 
 

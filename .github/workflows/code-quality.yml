@@ -23,6 +23,11 @@ jobs:
           tools: composer
           coverage: none
 
+      - name: check conditions
+        run: |
+          pwd
+          ls -la
+
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 

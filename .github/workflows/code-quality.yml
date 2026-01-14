@@ -37,8 +37,12 @@ jobs:
         run: |
           composer global require \
             squizlabs/php_codesniffer:^4.0 \
-            slevomat/coding-standard:^8.0
+            slevomat/coding-standard:8.26.0
 
+      - name: Check PHPCS installed sniffs
+        run: |
+          phpcs -i
+          
       - name: Validate PHPCS ruleset exists
         run: |
           RULESET="$phpcs_properties_file"

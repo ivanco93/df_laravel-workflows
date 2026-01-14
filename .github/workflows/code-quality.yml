@@ -37,7 +37,7 @@ jobs:
         run: |
           composer global require \
             squizlabs/php_codesniffer:^4.0 \
-            slevomat/coding-standard:^8.26
+            slevomat/coding-standard:^10.11
 
       - name: Validate PHPCS ruleset exists
         run: |

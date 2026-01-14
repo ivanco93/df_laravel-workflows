@@ -45,15 +45,18 @@ jobs:
           DEFAULT_RULESET="properties/phpcs/default.xml"
 
           if [ -f "$CUSTOM_RULESET" ]; then
-            echo "Using custom PHPCS ruleset: $CUSTOM_RULESET"
-            echo "ruleset=$CUSTOM_RULESET" >> $GITHUB_OUTPUT
+            RULESET_PATH=$(realpath "$CUSTOM_RULESET")
+            echo "Using custom PHPCS ruleset: $RULESET_PATH"
           else
-            echo "Custom ruleset not found. Falling back to default: $DEFAULT_RULESET"
-            echo "ruleset=$DEFAULT_RULESET" >> $GITHUB_OUTPUT
+            RULESET_PATH=$(realpath "$DEFAULT_RULESET")
+            echo "Using default PHPCS ruleset: $RULESET_PATH"
           fi
+
+          echo "ruleset=$RULESET_PATH" >> $GITHUB_OUTPUT
+
 
       - name: Run PHPCS
         run: |
           phpcs \
-            --standard=./${{ steps.phpcs_ruleset.outputs.ruleset }} \
+            --standard=${{ steps.phpcs_ruleset.outputs.ruleset }} \
             app/

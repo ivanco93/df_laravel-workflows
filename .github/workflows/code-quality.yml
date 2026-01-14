@@ -7,7 +7,9 @@ on:
         required: false
         default: '8.4'
         type: string
-
+env:
+  phpcs_properties_file: .code-quality/phpcs/phpcs.xml
+  
 jobs:
   phpcs:
     runs-on: ubuntu-latest
@@ -23,11 +25,6 @@ jobs:
           tools: composer
           coverage: none
 
-      - name: check conditions
-        run: |
-          pwd
-          ls -la
-
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
@@ -42,26 +39,19 @@ jobs:
             squizlabs/php_codesniffer \
             slevomat/coding-standard
 
-      - name: Resolve PHPCS ruleset
-        id: phpcs_ruleset
+      - name: Validate PHPCS ruleset exists
         run: |
-          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-          CUSTOM_RULESET="properties/phpcs/${REPO_NAME}.xml"
-          DEFAULT_RULESET="properties/phpcs/default.xml"
+          RULESET="$phpcs_properties_file"
 
-          if [ -f "$CUSTOM_RULESET" ]; then
-            RULESET_PATH=$(realpath "$CUSTOM_RULESET")
-            echo "Using custom PHPCS ruleset: $RULESET_PATH"
-          else
-            RULESET_PATH=$(realpath "$DEFAULT_RULESET")
-            echo "Using default PHPCS ruleset: $RULESET_PATH"
+          if [ ! -f "$RULESET" ]; then
+            echo "::error file=$RULESET::PHPCS ruleset not found. Every project must define $phpcs_properties_file"
+            exit 1
           fi
 
-          echo "ruleset=$RULESET_PATH" >> $GITHUB_OUTPUT
-
+          echo "PHPCS ruleset found at $RULESET"
 
       - name: Run PHPCS
         run: |
           phpcs \
-            --standard=${{ steps.phpcs_ruleset.outputs.ruleset }} \
+            --standard=$phpcs_properties_file \
             app/

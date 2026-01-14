@@ -26,6 +26,11 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
+      - name: Allow PHPCS Composer plugin
+        run: |
+          composer global config \
+            allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+            
       - name: Install PHPCS globally
         run: |
           composer global require \

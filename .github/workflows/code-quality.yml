@@ -11,6 +11,7 @@ on:
 env:
   phpcs_properties_file: .code-quality/phpcs/phpcs.xml
   phpstan_config_file: .code-quality/phpstan/phpstan.neon
+  deptrac_config_file: .code-quality/deptrac/deptrac.yaml
 
 permissions:
   contents: read
@@ -103,13 +104,54 @@ jobs:
         if: steps.phpstan.outputs.exit_code != '0'
         run: exit 1
 
+  deptrac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          tools: composer
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Validate Deptrac config exists
+        run: |
+          if [ ! -f "$deptrac_config_file" ]; then
+            echo "::error file=$deptrac_config_file::Deptrac config not found"
+            exit 1
+          fi
+
+      - name: Run Deptrac with PR annotations
+        id: deptrac
+        continue-on-error: true
+        if: github.event.pull_request != null
+        run: |
+          set +e
+
+          ./vendor/bin/deptrac analyse \
+            --config-file=$deptrac_config_file \
+            --fail-on-uncovered \
+            --report-uncovered \
+            --formatter=github-actions
+
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Fail if Deptrac found violations
+        if: steps.deptrac.outputs.exit_code != '0'
+        run: exit 1
+
   notify:
     runs-on: ubuntu-latest
-    needs: [phpcs, phpstan]
+    needs: [phpcs, phpstan, deptrac]
     if: |
       always() &&
       github.event.pull_request != null &&
-      (needs.phpcs.result == 'failure' || needs.phpstan.result == 'failure')
+      (needs.phpcs.result == 'failure' || needs.phpstan.result == 'failure' || needs.deptrac.result == 'failure')
     steps:
       - name: Add PR comment if checks failed (deduplicated)
         env:

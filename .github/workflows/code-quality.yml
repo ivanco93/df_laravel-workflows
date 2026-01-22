@@ -155,43 +155,14 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
 
-      - name: Run Unit tests with coverage
-        run: |
-          ./vendor/bin/phpunit \
-            --testsuite=Unit \
-            --coverage-clover=coverage-unit.xml \
-            --log-junit=unit-report.xml
+      - name: Run Unit tests with coverage check (>= 80%)
+        run: composer test:unit:coverage:check
 
-      - name: Enforce Unit coverage >= 80%
-        run: |
-          php -r '
-          $xml = simplexml_load_file("coverage-unit.xml");
-          $m = $xml->project->metrics;
-          $cov = ((int)$m["coveredstatements"] / max((int)$m["statements"], 1)) * 100;
-          if ($cov < 80) { exit(1); }
-          '
-
-      - name: Run Integration tests with coverage
-        run: |
-          ./vendor/bin/phpunit \
-            --testsuite=Integration \
-            --coverage-clover=coverage-integration.xml \
-            --log-junit=integration-report.xml
-
-      - name: Enforce Integration coverage >= 60%
-        run: |
-          php -r '
-          $xml = simplexml_load_file("coverage-integration.xml");
-          $m = $xml->project->metrics;
-          $cov = ((int)$m["coveredstatements"] / max((int)$m["statements"], 1)) * 100;
-          if ($cov < 60) { exit(1); }
-          '
+      - name: Run Integration tests with coverage check (>= 60%)
+        run: composer test:integration:coverage:check
 
       - name: Run Feature tests
-        run: |
-          ./vendor/bin/phpunit \
-            --testsuite=Feature \
-            --log-junit=feature-report.xml
+        run: composer test:feature
 
       - name: Generate test summary
         if: always()

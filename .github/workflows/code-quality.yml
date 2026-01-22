@@ -51,12 +51,10 @@ jobs:
         if: github.event.pull_request != null
         run: |
           set +e
-
           ./vendor/bin/phpcs \
             --standard=$phpcs_properties_file \
             --report=checkstyle \
           | cs2pr
-
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
 
       - name: Fail if PHPCS found errors
@@ -91,13 +89,11 @@ jobs:
         if: github.event.pull_request != null
         run: |
           set +e
-
           ./vendor/bin/phpstan analyse \
             -c $phpstan_config_file \
             --memory-limit=512M \
             --error-format=checkstyle \
           | cs2pr
-
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
 
       - name: Fail if PHPStan found errors
@@ -132,39 +128,122 @@ jobs:
         if: github.event.pull_request != null
         run: |
           set +e
-
           ./vendor/bin/deptrac analyse \
             --config-file=$deptrac_config_file \
             --fail-on-uncovered \
             --report-uncovered \
             --formatter=github-actions
-
           echo "exit_code=$?" >> $GITHUB_OUTPUT
 
       - name: Fail if Deptrac found violations
         if: steps.deptrac.outputs.exit_code != '0'
         run: exit 1
 
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          tools: composer
+          coverage: xdebug
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Run Unit tests with coverage
+        run: |
+          ./vendor/bin/phpunit \
+            --testsuite=Unit \
+            --coverage-clover=coverage-unit.xml \
+            --log-junit=unit-report.xml
+
+      - name: Enforce Unit coverage >= 80%
+        run: |
+          php -r '
+          $xml = simplexml_load_file("coverage-unit.xml");
+          $m = $xml->project->metrics;
+          $cov = ((int)$m["coveredstatements"] / max((int)$m["statements"], 1)) * 100;
+          if ($cov < 80) { exit(1); }
+          '
+
+      - name: Run Integration tests with coverage
+        run: |
+          ./vendor/bin/phpunit \
+            --testsuite=Integration \
+            --coverage-clover=coverage-integration.xml \
+            --log-junit=integration-report.xml
+
+      - name: Enforce Integration coverage >= 60%
+        run: |
+          php -r '
+          $xml = simplexml_load_file("coverage-integration.xml");
+          $m = $xml->project->metrics;
+          $cov = ((int)$m["coveredstatements"] / max((int)$m["statements"], 1)) * 100;
+          if ($cov < 60) { exit(1); }
+          '
+
+      - name: Run Feature tests
+        run: |
+          ./vendor/bin/phpunit \
+            --testsuite=Feature \
+            --log-junit=feature-report.xml
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          php <<'EOF'
+          function junit($f) {
+              $x = simplexml_load_file($f);
+              $t = (int)$x['tests'];
+              $e = (int)$x['errors'] + (int)$x['failures'];
+              return [$t, $t - $e, $e];
+          }
+          function cov($f) {
+              if (!file_exists($f)) return 'N/A';
+              $x = simplexml_load_file($f)->project->metrics;
+              return round(((int)$x['coveredstatements'] / max((int)$x['statements'],1)) * 100, 2) . '%';
+          }
+          [$ut,$us,$ue] = junit('unit-report.xml');
+          [$it,$is,$ie] = junit('integration-report.xml');
+          [$ft,$fs,$fe] = junit('feature-report.xml');
+
+          $summary = <<<MD
+          ## Test Execution Summary
+
+          | Category     | Total tests | Success | Error | Coverage |
+          |--------------|-------------|---------|-------|----------|
+          | Unit         | $ut         | $us     | $ue   | {cov('coverage-unit.xml')} |
+          | Integration  | $it         | $is     | $ie   | {cov('coverage-integration.xml')} |
+          | Feature      | $ft         | $fs     | $fe   | N/A |
+          MD;
+
+          file_put_contents(getenv('GITHUB_STEP_SUMMARY'), preg_replace_callback('/\{cov\((.*?)\)\}/', fn($m)=>cov(trim($m[1],"'")), $summary));
+          EOF
+
   notify:
     runs-on: ubuntu-latest
-    needs: [phpcs, phpstan, deptrac]
+    needs: [phpcs, phpstan, deptrac, tests]
     if: |
       always() &&
       github.event.pull_request != null &&
-      (needs.phpcs.result == 'failure' || needs.phpstan.result == 'failure' || needs.deptrac.result == 'failure')
+      (needs.phpcs.result == 'failure' ||
+       needs.phpstan.result == 'failure' ||
+       needs.deptrac.result == 'failure' ||
+       needs.tests.result == 'failure')
     steps:
       - name: Add PR comment if checks failed (deduplicated)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           COMMENT_BODY="Code quality checks failed. Please review the annotations for details."
-
           EXISTING_COMMENT=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
             --jq ".[] | select(.body == \"$COMMENT_BODY\") | .id")
-
           if [ -z "$EXISTING_COMMENT" ]; then
             gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
               -f body="$COMMENT_BODY"
-          else
-            echo "Comment already exists, skipping."
           fi

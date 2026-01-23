@@ -167,36 +167,31 @@ jobs:
       - name: Generate test summary
         if: always()
         run: |
-          SUMMARY=$(php <<'EOF'
+          php -r '
           function junit($f) {
               if (!file_exists($f)) return [0, 0, 0];
               $x = simplexml_load_file($f);
               $ts = $x->testsuite ?? $x;
-              $t = (int)$ts['tests'];
-              $e = (int)$ts['errors'] + (int)$ts['failures'];
-              return [$t, $t - $e, $e];
+              return [(int)$ts["tests"], (int)$ts["tests"] - (int)$ts["errors"] - (int)$ts["failures"], (int)$ts["errors"] + (int)$ts["failures"]];
           }
           function cov($f) {
-              if (!file_exists($f)) return 'N/A';
+              if (!file_exists($f)) return "N/A";
               $x = simplexml_load_file($f)->project->metrics ?? null;
-              if (!$x) return 'N/A';
-              return round(((int)$x['coveredstatements'] / max((int)$x['statements'],1)) * 100, 2) . '%';
+              if (!$x) return "N/A";
+              return round(((int)$x["coveredstatements"] / max((int)$x["statements"],1)) * 100, 2) . "%";
           }
-          [$ut,$us,$ue] = junit('unit-report.xml');
-          [$it,$is,$ie] = junit('integration-report.xml');
-          [$ft,$fs,$fe] = junit('feature-report.xml');
-          $uc = cov('coverage-unit.xml');
-          $ic = cov('coverage-integration.xml');
-
+          [$ut,$us,$ue] = junit("unit-report.xml");
+          [$it,$is,$ie] = junit("integration-report.xml");
+          [$ft,$fs,$fe] = junit("feature-report.xml");
+          $uc = cov("coverage-unit.xml");
+          $ic = cov("coverage-integration.xml");
           echo "## Test Execution Summary\n\n";
-          echo "| Category     | Total tests | Success | Error | Coverage |\n";
-          echo "|--------------|-------------|---------|-------|----------|\n";
-          echo "| Unit         | $ut         | $us     | $ue   | $uc |\n";
-          echo "| Integration  | $it         | $is     | $ie   | $ic |\n";
-          echo "| Feature      | $ft         | $fs     | $fe   | N/A |\n";
-          EOF
-          )
-          echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
+          echo "| Category | Total | Success | Errors | Coverage |\n";
+          echo "|----------|-------|---------|--------|----------|\n";
+          echo "| Unit | $ut | $us | $ue | $uc |\n";
+          echo "| Integration | $it | $is | $ie | $ic |\n";
+          echo "| Feature | $ft | $fs | $fe | N/A |\n";
+          ' >> $GITHUB_STEP_SUMMARY
 
   notify:
     runs-on: ubuntu-latest

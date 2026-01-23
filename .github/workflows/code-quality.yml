@@ -167,7 +167,7 @@ jobs:
       - name: Generate test summary
         if: always()
         run: |
-          php <<'EOF'
+          SUMMARY=$(php <<'EOF'
           function junit($f) {
               if (!file_exists($f)) return [0, 0, 0];
               $x = simplexml_load_file($f);
@@ -185,19 +185,18 @@ jobs:
           [$ut,$us,$ue] = junit('unit-report.xml');
           [$it,$is,$ie] = junit('integration-report.xml');
           [$ft,$fs,$fe] = junit('feature-report.xml');
+          $uc = cov('coverage-unit.xml');
+          $ic = cov('coverage-integration.xml');
 
-          $summary = <<<MD
-          ## Test Execution Summary
-
-          | Category     | Total tests | Success | Error | Coverage |
-          |--------------|-------------|---------|-------|----------|
-          | Unit         | $ut         | $us     | $ue   | {cov('coverage-unit.xml')} |
-          | Integration  | $it         | $is     | $ie   | {cov('coverage-integration.xml')} |
-          | Feature      | $ft         | $fs     | $fe   | N/A |
-          MD;
-
-          file_put_contents(getenv('GITHUB_STEP_SUMMARY'), preg_replace_callback('/\{cov\((.*?)\)\}/', fn($m)=>cov(trim($m[1],"'")), $summary));
+          echo "## Test Execution Summary\n\n";
+          echo "| Category     | Total tests | Success | Error | Coverage |\n";
+          echo "|--------------|-------------|---------|-------|----------|\n";
+          echo "| Unit         | $ut         | $us     | $ue   | $uc |\n";
+          echo "| Integration  | $it         | $is     | $ie   | $ic |\n";
+          echo "| Feature      | $ft         | $fs     | $fe   | N/A |\n";
           EOF
+          )
+          echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
 
   notify:
     runs-on: ubuntu-latest

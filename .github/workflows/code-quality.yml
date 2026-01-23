@@ -169,14 +169,17 @@ jobs:
         run: |
           php <<'EOF'
           function junit($f) {
+              if (!file_exists($f)) return [0, 0, 0];
               $x = simplexml_load_file($f);
-              $t = (int)$x['tests'];
-              $e = (int)$x['errors'] + (int)$x['failures'];
+              $ts = $x->testsuite ?? $x;
+              $t = (int)$ts['tests'];
+              $e = (int)$ts['errors'] + (int)$ts['failures'];
               return [$t, $t - $e, $e];
           }
           function cov($f) {
               if (!file_exists($f)) return 'N/A';
-              $x = simplexml_load_file($f)->project->metrics;
+              $x = simplexml_load_file($f)->project->metrics ?? null;
+              if (!$x) return 'N/A';
               return round(((int)$x['coveredstatements'] / max((int)$x['statements'],1)) * 100, 2) . '%';
           }
           [$ut,$us,$ue] = junit('unit-report.xml');
